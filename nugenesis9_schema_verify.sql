@@ -68,6 +68,7 @@
 -- MMorrison	53		2022-10-07	Display error messages if the schemas report as version 8.  Set the LMS schema ver as num to 0 if the LMS schema version is not known.
 -- MMorrison	54		2022-10-26	Prevent ORA00942 errors on inv_instrument_hub in the 9.2 HF1 updates verification when running on prior versions of the schema. Set correct no. of views, functions, procedures expected for elnprod; correct no. of PK constraints and obj privs for ngsdms60 and ngproxy; for NG 9.3.
 -- MMorrison	55		2023-10-03	Support for NuGenesis 9.3.1. Show the supported NG versions in the script header.
+-- MMorrison	56		2023-10-30	Correct the elnprod table list for NG 9.3.1.  Check dba_ind_partititions for index state and logging in case of partitioned indexes.
 -------------------------------------------------------------------------------------------------------------------------------
 SET FEEDBACK OFF LINESIZE 500 PAGESIZE 200 TRIMSPOOL ON TIMING OFF ECHO OFF DOC OFF TRIM ON verify off SERVEROUTPUT ON SIZE 1000000 heading ON define ON
 TTITLE OFF
@@ -96,7 +97,7 @@ COLUMN CLUSTER_NAME		FORMAT A40
 COLUMN value 			FORMAT a20
 
 ALTER SESSION SET NLS_DATE_FORMAT = "MM/DD/YYYY";
-SELECT 'NuGenesis9_SchemaVerify_r55_'||to_char(sysdate,'yyyy-mm-dd_hh24-mi-ss')||'.log' "file" FROM DUAL;
+SELECT 'NuGenesis9_SchemaVerify_r56_'||to_char(sysdate,'yyyy-mm-dd_hh24-mi-ss')||'.log' "file" FROM DUAL;
 SPOOL &file 
 SET define OFF
 VARIABLE	v_ConnTableCount	NUMBER;
@@ -117,7 +118,7 @@ VARIABLE	v_BlobConv_Warning	NUMBER;
 SELECT	TO_CHAR(sysdate,'YYYY-MM-DD HH24:MI:SS') today FROM sys.dual;
 
 prompt           *******************************************************
-prompt           * NuGenesis 9 schema verification script, revision 55 *
+prompt           * NuGenesis 9 schema verification script, revision 56 *
 prompt           *         For NuGenesis versions 9.0 - 9.3.1          *
 prompt           *******************************************************
 prompt
@@ -824,7 +825,7 @@ BEGIN
 				'SPECIFICATIONLABGROUP','SPECIFICATIONLABGROUPA0','SPECIFICATIONSAMPLETEMPLATE','SPECIFICATIONSAMPLETEMPLATEA0','SPECIFICATIONSIGN','SPECIFICATIONSIGNA0','SPECIFICATIONTEMP','SPECIFICATIONTEST','SPECIFICATIONTESTA0','SPECIFICATIONTESTRESULT','SPECIFICATIONTESTRESULTA0','SPECIFICATIONVARIANT','SPECIFICATIONVARIANTA0','SPECRESULTREQUIREMENT','SPECRESULTREQUIREMENTA0','STATUS','STATUSA0','STATUSTYPE','STATUSTYPEA0','STRUCTUREATTRIBUTES','STRUCTUREATTRIBUTESA0','STRUCTURES_DATA','STRUCTURES_DATAA0','STRUCTURES_HEADER','STRUCTURES_HEADERA0','SUBMISSION','SUBMISSIONA0','SUBMISSIONSAMPLE','SUBMISSIONSAMPLEA0','SUBMISSIONTEMP','SUBMISSIONTEMPLATE','SUBMISSIONTEMPLATEA0','SUBMISSIONTEMPLATELIST','SUBMISSIONTEMPLATELISTA0','SUBMISSIONTEMPLTEMP','SUBMISSIONTEST','SUBMISSIONTESTA0','SUBMISSIONTESTRESULT','SUBMISSIONTESTRESULTA0','SUBMISSIONTESTRESULTREQ','SUBMISSIONTESTRESULTREQA0','SUBSTANCE','SUBSTANCEA0','SYSTEMTYPE','SYSTEMTYPEA0','SYSTEMVALUES','SYSTEMVALUESA0','TEST','TESTA0','TESTATTRIBUTE','TESTATTRIBUTEA0','TESTDEFINITION','TESTDEFINITIONA0','TESTGROUPMETHODPREPARATION','TESTGROUPMETHODPREPARATIONA0','TESTLOG','TESTLOGA0','TESTREQUEST','TESTREQUESTA0',
 				'TESTREQUESTATTRIBUTE','TESTREQUESTATTRIBUTEA0','TESTREQUESTSIGN','TESTREQUESTSIGNA0','TESTREQUESTTEMP','TESTRESULT','TESTRESULTA0','TESTRESULTATTRIBUTE','TESTRESULTATTRIBUTEA0','TESTRESULTDEFINITION','TESTRESULTDEFINITIONA0','TESTRESULTREQTEMPLATE','TESTRESULTREQTEMPLATEA0','TESTRESULTREQUIREMENT','TESTRESULTREQUIREMENTA0','TESTRESULTTEMPLATE','TESTRESULTTEMPLATEA0','TESTSAMPLE','TESTSAMPLEA0','TESTTEMP','THUMBNAILS','THUMBNAILSA0','UICONFIGURATION','UICONFIGURATIONA0','UPLOADTEMPLATEFIELDS','UPLOADTEMPLATEFIELDSA0','UPLOADTEMPLATEHEADER','UPLOADTEMPLATEHEADERA0','UPLOADTEMPLATES','UPLOADTEMPLATESA0','USERATTRIBUTES','USERATTRIBUTESA0','USERLOG','USERLOGA0','USERMESSAGE','USERMESSAGEA0','USERPREFERENCES','USERPREFERENCESA0','USERPROGLOG','USERPROGLOGA0','USERS','USERSA0','USERSSIGNINFO','USERSSIGNINFOA0','USERTRAINING','USERTRAININGA0','USERTRAININGLOG','USERTRAININGLOGA0','WEBSESSIONS','WEBSESSIONSA0','WHERECONDITION','WHERECONDITIONA0','WORKLIST','WORKLISTA0','INV_INSTRUMENTATTRIBUTE','INV_INSTRUMENTATTRIBUTEA0','INV_CHEMICALATTRIBUTE','INV_CHEMICALATTRIBUTEA0','INV_INSTRUMENT_SYSTEM','INV_INSTRUMENT_SYSTEMA0','INV_INSTRUMENT_EXTENDED','INV_INSTRUMENT_EXTENDEDA0','MRULIST','MRULISTA0',
 				'INV_INSTRUMENT_HUB','INV_INSTRUMENT_HUBA0');
-				IF(:v_LMSSchemaVerAsNum IN (9201, 9300))		THEN -- ELNPROD table list for NG 9.2 hotfix 1 and 9.3.
+				IF(:v_LMSSchemaVerAsNum >= 9201)		THEN -- ELNPROD table list for NG 9.2 hotfix 1 and 9.3.
 					t_TableList(t_TableList.LAST) := 'INV_INSTRUMENT_SYNC'; -- Table inv_instrument_huba0 was deleted.  Replace it with inv_instrument_sync which is new in 9.2 HF1.
 				END IF;
 			END IF;
@@ -1321,24 +1322,24 @@ BEGIN
 				DBMS_OUTPUT.PUT_LINE('Index: '||v_SchemaName||'.'||t_IndexNameList(indx)||' is present');
 				SELECT logging, status, partitioned INTO v_IndexLogging, v_IndexStatus, v_IndexPart FROM dba_indexes WHERE index_name  = t_IndexNameList(indx) AND owner = v_SchemaName;
 
-				DBMS_OUTPUT.PUT_LINE('-- index is partitioned: '||v_IndexPart);
+				DBMS_OUTPUT.PUT_LINE('-- Partitioned: '||v_IndexPart);
 				IF (v_IndexPart = 'YES')	THEN
 					SELECT COUNT(*) INTO v_Count FROM dba_ind_partitions WHERE INDEX_NAME = t_IndexNameList(indx) AND index_owner = v_SchemaName AND status != 'USABLE';
-					IF (v_Count = 0)	THEN	DBMS_OUTPUT.PUT_LINE('-- all index partitions report as USABLE');
-					ELSE				DBMS_OUTPUT.PUT_LINE('-- !!! WARNING: '||v_Count||' partition(s) report as unusable!');
+					IF (v_Count = 0)	THEN	DBMS_OUTPUT.PUT_LINE('-- Status: all index partitions report as USABLE');
+					ELSE				DBMS_OUTPUT.PUT_LINE('-- !!!!! ERROR: status: '||v_Count||' partition(s) report as unusable!');
 					END IF;
 
 					SELECT COUNT(*) INTO v_Count FROM dba_ind_partitions WHERE INDEX_NAME = t_IndexNameList(indx) AND index_owner = v_SchemaName AND logging != 'YES';
-					IF (v_Count = 0)	THEN	DBMS_OUTPUT.PUT_LINE('-- all index partitions report as LOGGING');
-					ELSE				DBMS_OUTPUT.PUT_LINE('-- !!! WARNING: '||v_Count||' partition(s) report as not logging!');
+					IF (v_Count = 0)	THEN	DBMS_OUTPUT.PUT_LINE('-- Logging: all index partitions report as LOGGING');
+					ELSE				DBMS_OUTPUT.PUT_LINE('-- !!!!! ERROR: loging: '||v_Count||' partition(s) report as not logging!');
 					END IF;
 				ELSE
-					IF (v_IndexStatus = 'VALID')			THEN	DBMS_OUTPUT.PUT_LINE('-- index is '||v_IndexStatus);
-					ELSE							DBMS_OUTPUT.PUT_LINE('-- !!!!! ERROR: index status '||v_IndexStatus||' is incorrect; it should be VALID!');
+					IF (v_IndexStatus = 'VALID')			THEN	DBMS_OUTPUT.PUT_LINE('-- Status: '||v_IndexStatus);
+					ELSE							DBMS_OUTPUT.PUT_LINE('-- !!!!! ERROR: status: '||v_IndexStatus||' is incorrect; it should be VALID!');
 					END IF;
 
-					IF (v_IndexLogging = 'YES')			THEN	DBMS_OUTPUT.PUT_LINE('-- index is in LOGGING mode');
-					ELSE							DBMS_OUTPUT.PUT_LINE('-- !!!!! ERROR: index logging status '||v_IndexLogging||' is incorrect; it should be in logging mode!');
+					IF (v_IndexLogging = 'YES')			THEN	DBMS_OUTPUT.PUT_LINE('-- Logging: '||v_IndexLogging);
+					ELSE							DBMS_OUTPUT.PUT_LINE('-- !!!!! ERROR: logging mode '||v_IndexLogging||' is incorrect; it should be in logging mode!');
 					END IF;
 				END IF;
 			END IF;
@@ -5048,9 +5049,9 @@ PROMPT *************************************************************************
 PROMPT
 
 BEGIN
-	DBMS_OUTPUT.PUT_LINE('NuGenesis LMS schema version: '||:v_LMSSchemaVer);
-	IF	(:v_LMSSchemaVerAsNum < 9300)	THEN	DBMS_OUTPUT.PUT_LINE('NuGenesis version is less than 9.3, skipping these checks.');
-	ELSE	DBMS_OUTPUT.PUT_LINE('NuGenesis version is greater than or equal to 9.3, starting verification of the NuGenesis 9.3 schema modifications.');
+	DBMS_OUTPUT.PUT_LINE('NuGenesis schema version: '||:v_LMSSchemaVerAsNum);
+	IF	(:v_LMSSchemaVerAsNum < 9310)	THEN	DBMS_OUTPUT.PUT_LINE('NuGenesis version is less than 9.3.1, skipping these checks.');
+	ELSE	DBMS_OUTPUT.PUT_LINE('NuGenesis version is greater than or equal to 9.3.1, starting verification of the NuGenesis 9.3.1 schema modifications.');
 	END IF;
 END;
 /
